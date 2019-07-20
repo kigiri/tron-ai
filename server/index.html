@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fakecaster 3</title>
+  <meta charset="utf-8">
+<style>
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: black;
+  font-family: monospace;
+}
+
+canvas {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#board {
+  height: 100vw;
+  width: 100vw;
+  background: #222;
+}
+
+@media (orientation:landscape) {
+  #board {
+    height: 100vh;
+    width: 100vh;
+  }
+}
+
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<script type="module">
+
+import './zstd.js'
+// CONSTANTS
+const params = Object.fromEntries(new URL(location).searchParams)
+const DEAD = 0xFF
+const OFF = DEAD - 1
+const SIZE = Math.floor(Math.max(Math.min(params.size || 0, OFF), 8) / 2) * 2
+const MAX = SIZE*SIZE
+const [ NORTH, EAST, SOUTH, WEST ] = Array(4).keys()
+const BUF_SIZE = SIZE*SIZE*3*6
+const BUF = new Float32Array(BUF_SIZE)
+const getX = pos => Math.floor(pos / SIZE)
+const getY = pos => pos % SIZE
+const PI2 = Math.PI * 2
+
+// LIB
+const eachPos = fn => {
+  let x = -1
+  while (++x < SIZE) {
+    let y = -1
+    while (++y < SIZE) {
+      fn(x * SIZE + y, x, y)
+    }
+  }
+}
+
+const eachMoves = (moves, fn) => {
+  let i = 0
+  while (i < moves.length) {
+    fn(moves[i], moves[i+1], i && (i / 2))
+    i += 2
+  }
+}
+
+const colorize = (x, y, color) => {
+  const i = (x * SIZE + y) * 6 * 3
+  BUF[i+2] = color
+  BUF[i+5] = color
+  BUF[i+8] = color
+  BUF[i+11] = color
+  BUF[i+14] = color
+  BUF[i+17] = color
+}
+
+const shuffle = arr => {
+  let i = arr.length
+  let j, tmp
+  while (--i > 0) {
+    j = Math.floor(Math.random() * (i + 1))
+    tmp = arr[j]
+    arr[j] = arr[i]
+    arr[i] = tmp
+  }
+  return arr
+}
+
+const isEmpty = (x, y) => {
+  const color = BUF[(x*SIZE+y)*6*3+2]
+  return color === 0x121212 || color === 0x101010
+}
+
+const toInt = (r, g, b) => (r << 16) | (g << 8) | b
+const toRange = n => Math.round(n * 0xFF)
+const hue2rgb = (p, q, t) => {
+  if(t < 0) t += 1
+  if(t > 1) t -= 1
+  if(t < 1/6) return p + (q - p) * 6 * t
+  if(t < 1/2) return q
+  if(t < 2/3) return p + (q - p) * (2/3 - t) * 6
+  return p
+}
+
+const hslToRgb = (h, s, l) => {
+  if (!s) return toInt(toRange(l), toRange(l), toRange(l))
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+  const r = hue2rgb(p, q, h + 1/3)
+  const g = hue2rgb(p, q, h)
+  const b = hue2rgb(p, q, h - 1/3)
+
+  return toInt(toRange(r), toRange(g), toRange(b))
+}
+
+const randomRate = Math.random()
+const _m = 0x80000000
+const _m1 = _m - 1
+let _seed = Math.floor(randomRate * _m1)
+
+const nextInt = () => _seed = (1103515245 * _seed + 12345) % _m
+const nextFloat = () => nextInt() / _m1
+const nextRange = (start, end) =>
+  start + Math.floor(nextInt() / _m * end - start)
+
+const rand = {
+  seed: rate => {
+    if (!rate) return _seed
+    return _seed = rate < 1
+      ? Math.floor((rate || randomRate) * _m1)
+      : (_seed = rate)
+  },
+  pick: arr => arr[nextRange(0, arr.length)],
+  float: nextFloat,
+  range: nextRange,
+  int: nextInt,
+}
+
+// WEBGL
+// setup shaders
+const vertexShaderText = `
+precision mediump float;
+
+attribute vec2 v_pos;
+attribute float v_color;
+varying float c;
+
+void main() {
+  c = v_color;
+  //   gl_Position = vec4((a_position / u_resolution * 2.0 - 1.0) * vec2(1, -1), 0, 1);
+
+  gl_Position = vec4(((v_pos - ${SIZE/2}.0) * vec2(1.0, -1.0)) / ${SIZE/2}.0, 0.0, 1.0);
+}`
+
+const fragmentShaderText =`
+precision mediump float;
+
+varying float c;
+
+void main() {
+  vec4 color;
+  color.r = floor(c / 65536.0);
+  color.g = floor((c - color.r * 65536.0) / 256.0);
+  color.b = floor(c - color.r * 65536.0 - color.g * 256.0);
+  color.a = 256.0;
+  gl_FragColor = color / 256.0;
+}`
+
+// Init webgl context
+const canvas = document.getElementById('board')
+canvas.height = canvas.width = SIZE * 2
+const gl = canvas.getContext('webgl', { antialias: false })
+gl.imageSmoothingEnabled = false
+gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+// Create shaders
+const vertexShader = gl.createShader(gl.VERTEX_SHADER)
+const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)
+const program = gl.createProgram()
+
+gl.shaderSource(vertexShader, vertexShaderText)
+gl.shaderSource(fragmentShader, fragmentShaderText)
+gl.compileShader(vertexShader)
+gl.compileShader(fragmentShader)
+gl.attachShader(program, vertexShader)
+gl.attachShader(program, fragmentShader)
+gl.linkProgram(program)
+
+// init blocks
+eachPos((pos, x, y) => {
+  const i = pos * 3 * 6
+  const color = x % 2 && y % 2 ? 0x101010 : 0x121212
+  BUF[i] = x
+  BUF[i+1] = y
+  BUF[i+2] = color
+  BUF[i+3] = x + 1
+  BUF[i+4] = y
+  BUF[i+5] = color
+  BUF[i+6] = x
+  BUF[i+7] = y + 1
+  BUF[i+8] = color
+  BUF[i+9] = x
+  BUF[i+10] = y + 1
+  BUF[i+11] = color
+  BUF[i+12] = x + 1
+  BUF[i+13] = y
+  BUF[i+14] = color
+  BUF[i+15] = x + 1
+  BUF[i+16] = y + 1
+  BUF[i+17] = color
+})
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
+
+const vPos = gl.getAttribLocation(program, 'v_pos')
+const vCol = gl.getAttribLocation(program, 'v_color')
+gl.vertexAttribPointer(vPos, 2, gl.FLOAT, gl.FALSE, 3*4, 0)
+gl.vertexAttribPointer(vCol, 1, gl.FLOAT, gl.FALSE, 3*4, 2*4)
+gl.enableVertexAttribArray(vPos)
+gl.enableVertexAttribArray(vCol)
+
+// Main render
+gl.useProgram(program)
+gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+
+// WEBSOCKETS
+let now = Date.now()
+const connectPlayer = options => new Promise((resolve, reject) => {
+  const { url, update, ...initParams } = options
+  const ws = new WebSocket(url)
+  ws.binaryType = 'arraybuffer'
+  const init = e => {
+    const name = String.fromCharCode.apply(null, new Uint8Array(e.data))
+    ws.removeEventListener('message', init)
+    ws.addEventListener('message', ({ data }) =>
+      update(ws, new Uint8Array(data)[0]))
+    resolve({ ...initParams, url, ws, name: `${name}-${initParams.index}` })
+  }
+  ws.addEventListener('message', init)
+  ws.addEventListener('error', reject)
+  ws.addEventListener('open', () => ws.send(JSON.stringify(initParams)))
+})
+
+
+// GAME LOGIC
+const initGame = async urls => new Promise(async resolve => {
+  // Generating initial state
+  const seed = rand.seed(Number(params.seed))
+  let count = urls.length
+  let deads = 0
+  const size = count * 2
+  const max = (m, n) => n > m ? max(1, n - m) : n
+  const angle = PI2 / count
+  const rate = (SIZE / count / SIZE)
+  const shift = angle * rand.float()
+  const h = SIZE / 2
+  const m = h * 0.8
+
+  const initialState = new Uint8Array(urls.flatMap((_, i) => [
+    Math.round(max(PI2, Math.cos(angle * i + shift)) * m + h),
+    Math.round(max(PI2, Math.sin(angle * i + shift)) * m + h),
+  ]))
+
+  // Connecting to AI servers
+  console.log('init-game', {seed, initialState, count})
+  let req, prev, next = new Uint8Array(size).fill(OFF)
+  let current = 0
+  const moves = []
+  const loop = () => {
+    req = undefined
+    //eachPos((position, x, y) => {
+      //colorize(x, y, Math.random()*0xFFFFFF)
+    //})
+    console.log(moves.length)
+    gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
+    gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+  }
+
+  const end = () => {
+    req || (req = requestAnimationFrame(loop))
+    if (deads === count) {
+      resolve(moves)
+      return
+    }
+    if ((current + deads) < count) return
+    moves.push(prev = next)
+    next = new Uint8Array(size).fill(DEAD)
+    current = 0
+    for (const { ws, isDead } of players) {
+      isDead || ws.send(prev)
+    }
+  }
+
+  const players = await Promise.all(shuffle(urls.map((url, index) => [
+    hslToRgb(max(1, index * rate + 0.25), 1, 0.5),
+    url,
+  ])).map(([color, url], index) => {
+    let death = ''
+    const X = index * 2
+    const Y = X + 1
+    const name = url.split('?')[1]
+    const update = (ws, action) => {
+      const player = players[index]
+      if (death) return console.warn('dead connection not closed', player)
+      const baseX = prev[X]
+      const baseY = prev[Y]
+      let x = baseX
+      let y = baseY
+      switch (action) {
+        case SOUTH: ++x; break
+        case EAST: ++y; break
+        case NORTH: --x; break
+        case WEST: --y; break
+      }
+
+      if (isEmpty(x, y)) {
+        current++
+        next[X] = x
+        next[Y] = y
+      } else {
+        ws.close()
+        player.isDead = true
+        deads++
+      }
+
+      end()
+    }
+    
+    return Promise.race([
+      connectPlayer({ url, seed, index, color, update }),
+      new Promise(s => setTimeout(s, 5000)),
+    ]).then(player => {
+      if (!player) {
+        next[X] = DEAD
+        next[Y] = DEAD
+        deads++
+      } else {
+        current++
+        next[X] = initialState[X]
+        next[Y] = initialState[Y]
+      }
+      setTimeout(end) // force trigger after all players are loaded
+      return player || { isDead: true }
+    })
+  }))
+})
+
+// START THE GAME
+initGame([
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+`ws://${document.location.host}/play`,
+]).then(console.log)
+
+</script>
+</body>
+</html>
