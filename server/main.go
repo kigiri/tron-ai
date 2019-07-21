@@ -65,28 +65,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
-	if r.URL.Path == "/zstd.wasm" {
-		w.Header().Set("Content-Type", "application/wasm")
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
-			w.Header().Set("Content-Encoding", "br")
-			http.ServeFile(w, r, "zstd.wasm.br")
-		} else {
-			http.ServeFile(w, r, "zstd.wasm")
-		}
-
-		return
-	}
-	if r.URL.Path == "/zstd.js" {
-		w.Header().Set("Content-Type", "application/javascript")
-		/*	if strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
-			w.Header().Set("Content-Encoding", "br")
-			http.ServeFile(w, r, "zstd.js.br")
-		} else {*/
-		http.ServeFile(w, r, "zstd.js")
-		/*}*/
-
-		return
-	}
 	if r.URL.Path != "/" {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
