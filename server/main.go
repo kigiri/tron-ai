@@ -5,7 +5,6 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -25,12 +24,11 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 	// read first message
 	_, message, err := c.ReadMessage()
-	var initParams struct {
-		Seed  int32
-		Index int8
-	}
-	json.Unmarshal(message, &initParams)
-	log.Println("starting game:", initParams)
+	ctx := Context{}
+	json.Unmarshal(message, &ctx)
+	log.Println("starting game:", ctx)
+	index := ctx.Index
+	count := ctx.Count
 
 	// signal that we are read and send player name
 	err = c.WriteMessage(websocket.BinaryMessage, []byte(NAME))
@@ -41,17 +39,28 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 	// Loop until the game is over
 	for {
-		_, message, err = c.ReadMessage()
+		_, buffer, err := c.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		log.Println(message)
-		// send hue and name
-
-		c.WriteMessage(websocket.BinaryMessage, []byte{0})
+		players := make([]Player, count)
+		for i := 0; i < count; i++ {
+			x := i * 2
+			y := x + 1
+			if i == index {
+				players[0].x = buffer[x]
+				players[0].y = buffer[y]
+			} else if i > index {
+				players[i].x = buffer[x]
+				players[i].y = buffer[y]
+			} else {
+				players[i+1].x = buffer[x]
+				players[i+1].y = buffer[y]
+			}
+		}
+		c.WriteMessage(websocket.BinaryMessage, []byte{ai(players, &ctx)})
 	}
-
 }
 
 func serveHome(w http.ResponseWriter, r *http.Request) {

@@ -367,7 +367,7 @@ const initGame = async urls => new Promise(async resolve => {
     }
     
     return Promise.race([
-      connectPlayer({ url, seed, index, color, update }),
+      connectPlayer({ url, seed, index, count, color, update }),
       new Promise(s => setTimeout(s, 5000)),
     ]).then(player => {
       if (!player) {

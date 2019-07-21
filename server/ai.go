@@ -1,31 +1,44 @@
+package main
+
+import (
+	"fmt"
+	"math/rand"
+)
+
+const MAX = 0xff - 2
 const (
 	NORTH = iota
-	EAST   = iota
-	SOUTH   = iota
-	WEST = iota
+	EAST  = iota
+	SOUTH = iota
+	WEST  = iota
 )
 
 const (
-	UP          = iota
+	UP    = iota
 	RIGHT = iota
-	DOWN = iota
-	LEFT = iota
+	DOWN  = iota
+	LEFT  = iota
 )
 
-type State struct {
-
-  //   color: A number that represent the color of a player
-  //   name: A string of the player name
-  //   score: A number of the total block collected by this player
-  //   x: The horizontal position of the player
-  //   y: The vertical position of the player
-  //   coords: An array of 4 coordinates of the nearest blocks
-  //     [ NORTH, EAST, SOUTH, WEST ]
-  //                  N
-  //               W  +  E
-  //                  S
+type Player struct {
+	x byte
+	y byte
 }
 
-func ai() {
+type Context struct {
+	Seed  int
+	Index int
+	Count int
+	Rand  rand.Rand
+}
 
+func (p Player) isDead() bool { return p.x >= MAX }
+
+func ai(players []Player, ctx *Context) byte {
+	fmt.Println(players[0])
+	// always go down
+	if ctx.Index%2 == 0 {
+		return SOUTH
+	}
+	return NORTH
 }
