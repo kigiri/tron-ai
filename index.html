@@ -444,6 +444,8 @@ const initGame = async urls => new Promise(async resolve => {
 const proto = `ws${location.protocol === 'https:'?'s':''}://`
 // START THE GAME
 initGame(URLS.map(url => {
+  if (/^[0-9]+$/.test(url)) return `${proto}localhost:${url}`
+  if (!/[.:]/.test(url)) return `${proto}${url}.serveo.net`
   if (url.startsWith('ws')) return url
   return `${proto}${url}`
 }))
