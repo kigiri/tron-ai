@@ -50,8 +50,7 @@ func (p Player) isDead() bool { return p.x >= max }
 // You have 5 seconds to prepare until your build timeout
 // so try to do the expensive calculation here
 func buildContext(ctx *Context) {
-	c := *ctx
-	c.Name = "jean"
+	(* ctx).Name = "jean-go"
 }
 
 // ai is called at each turns and must return one of the directions:
