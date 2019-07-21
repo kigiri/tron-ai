@@ -82,6 +82,7 @@ const BUF = new Float32Array(BUF_SIZE)
 const getX = pos => Math.floor(pos / SIZE)
 const getY = pos => pos % SIZE
 const PI2 = Math.PI * 2
+const URLS = (params.url || '').split(',')
 
 // LIB
 const inBound = n => n >= 0 && n < SIZE 
@@ -442,10 +443,10 @@ const initGame = async urls => new Promise(async resolve => {
 
 const proto = `ws${location.protocol === 'https:'?'s':''}://`
 // START THE GAME
-initGame([
-  `${proto}localhost:8080`,
-  `${proto}${document.location.host}/play`,
-])
+initGame(URLS.map(url => {
+  if (url.startsWith('ws')) return url
+  return `${proto}${url}`
+}))
 
 </script>
 </body>
