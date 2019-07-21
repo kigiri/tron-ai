@@ -30,6 +30,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	index := ctx.Index
 	count := ctx.Count
 
+	// Build the context
+	buildContext(&ctx)
+
 	// signal that we are read and send player name
 	err = c.WriteMessage(websocket.BinaryMessage, []byte(NAME))
 	if err != nil {
@@ -59,7 +62,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				players[i+1].y = buffer[y]
 			}
 		}
-		c.WriteMessage(websocket.BinaryMessage, []byte{ai(players, &ctx)})
+		c.WriteMessage(websocket.BinaryMessage, []byte{ai(&ctx, players)})
 	}
 }
 
