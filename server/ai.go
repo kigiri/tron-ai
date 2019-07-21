@@ -5,22 +5,25 @@ import (
 )
 
 // the max size of a map
-const MAX = 254
+const max = 254
 const (
-	NORTH = iota
-	EAST
-	SOUTH
-	WEST
+	north = iota
+	east
+	south
+	west
 )
 
 // The player strucure, only holds absolute coordinates (x, y)
-// if x or y are greater than 254 (MAX) the player is dead or offline
+// if x or y are greater than 254 (max) the player is dead or offline
 type Player struct {
 	x byte
 	y byte
 }
 
 type Context struct {
+	// The name of your AI
+	Name  string
+
 	// The size of a side of the map (always a square)
 	Size int
 
@@ -40,22 +43,23 @@ type Context struct {
 	Rand rand.Rand
 }
 
-func (p Player) isDead() bool { return p.x >= MAX }
+func (p Player) isDead() bool { return p.x >= max }
 
 // buildContext is called when the game begins and is used
 // to prepare the context.
 // You have 5 seconds to prepare until your build timeout
 // so try to do the expensive calculation here
 func buildContext(ctx *Context) {
-
+	c := *ctx
+	c.Name = "jean"
 }
 
 // ai is called at each turns and must return one of the directions:
-//      NORTH
-//    WEST EAST
-//      SOUTH
+//      north
+//    west east
+//      south
 // if you move to a non empty block you die.
 func ai(ctx *Context, players []Player) byte {
-	// always go up
-	return NORTH
+	// always go down
+	return south
 }

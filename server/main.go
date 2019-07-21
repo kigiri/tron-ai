@@ -9,8 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const NAME = "kigiri"
-
 var port = flag.String("port", "8751", "http service port")
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -34,7 +32,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	buildContext(&ctx)
 
 	// signal that we are read and send player name
-	err = c.WriteMessage(websocket.BinaryMessage, []byte(NAME))
+	err = c.WriteMessage(websocket.BinaryMessage, []byte(ctx.Name))
 	if err != nil {
 		log.Println(err)
 		return
