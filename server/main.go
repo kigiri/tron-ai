@@ -64,24 +64,10 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func serveHome(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.URL)
-	if r.URL.Path != "/" {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	http.ServeFile(w, r, "index.html")
-}
-
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/play", serveWs)
-	http.HandleFunc("/", serveHome)
-	log.Println("server listening on port " + *port)
+	http.HandleFunc("/", serveWs)
+	log.Println("server go listening on port " + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
