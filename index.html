@@ -41,6 +41,7 @@ canvas {
   height: 100vh;
   width: 100vw;
   background: linear-gradient(0, black 10%, transparent);
+  display: none;
 }
 
 #logo {
@@ -258,6 +259,12 @@ gl.enableVertexAttribArray(vCol)
 gl.useProgram(program)
 gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
 
+const refresh = () => {
+  gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
+  gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+}
+
+
 // UI & CONTROLS
 
 // WEBSOCKETS
@@ -293,6 +300,13 @@ const initGame = async urls => new Promise(async resolve => {
   const h = SIZE / 2
   const m = h * 0.8
 
+  const players = shuffle([...urls]
+    .map((url, index) => ({
+      url,
+      index,
+      color: hslToRgb(max(1, index * rate + 0.25), 1, 0.5),
+    })))
+
   const initialState = new Uint8Array(urls.flatMap((_, i) => [
     Math.round(max(PI2, Math.cos(angle * i + shift)) * m + h),
     Math.round(max(PI2, Math.sin(angle * i + shift)) * m + h),
@@ -315,14 +329,13 @@ const initGame = async urls => new Promise(async resolve => {
       }
       currentIndex = max
     } else {
-      let i = Math.max(max, 1) - 1
+      let i = Math.max(max, 0) - 1
       while (++i < currentIndex) {
         eachMoves(moves[i], clear)
       }
-      currentIndex = Math.max(max, 1)
+      currentIndex = Math.max(max, 0)
     }
-    gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
-    gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+    refresh()
   }
 
   window.display = display
@@ -341,7 +354,7 @@ const initGame = async urls => new Promise(async resolve => {
   })
 
   window.addEventListener('wheel', e => {
-    display(Math.round(currentIndex + (e.deltaY / 10)))
+    display(Math.max(Math.round(currentIndex + (e.deltaY / 10)), 1))
   })
 
   let timeout
@@ -351,47 +364,35 @@ const initGame = async urls => new Promise(async resolve => {
   const end = () => {
     clearTimeout(timeout)
     if (deads === count) {
-     // const result = new Uint8Array(moves.length * size)
-     // let i = -1
-     // while (++i < moves.length) {
-     //   result.set(moves[i], i*size)
-     // }
-     // const compressed = compress(result, 9)
-     // const data = btoa(String.fromCharCode.apply(null, compressed))
-     // console.log({ compressed, result, data })
       resolve(moves)
       return
     }
     if ((current + deads) < count) return
+    current = 0
     moves.push(prev = next)
     next = new Uint8Array(size).fill(DEAD)
-    current = 0
-    for (const { ws, isDead } of players) {
-      isDead || ws.send(prev)
+    for (const send of senders) {
+      send(prev)
     }
     timeout = setTimeout(killPending, 1000)
   }
 
-  const players = await Promise.all(shuffle(urls.map((url, index) => [
-    hslToRgb(max(1, index * rate + 0.25), 1, 0.5),
-    url,
-  ])).map(([color, url], index) => {
-    let death = ''
+  const senders = await Promise.all(players.map(player => {
+    const { color, url, index } = player
     const X = index * 2
     const Y = X + 1
-    const name = url.split('?')[1]
+    let name = url
     const update = (ws, action) => {
-      const player = players[index]
-      if (death) return console.warn('dead connection not closed', player)
+      console.log('update', name, action)
       const baseX = prev[X]
       const baseY = prev[Y]
       let x = baseX
       let y = baseY
       switch (action) {
-        case SOUTH: ++x; break
-        case EAST:  ++y; break
-        case NORTH: --x; break
-        case WEST:  --y; break
+        case SOUTH: ++y; break
+        case EAST:  ++x; break
+        case NORTH: --y; break
+        case WEST:  --x; break
       }
 
       const i = x * SIZE + y
@@ -405,46 +406,46 @@ const initGame = async urls => new Promise(async resolve => {
         player.isDead = true
         deads++
       }
-
+      // display() sauf si explicitement pauser
+      if (currentIndex === moves.length - 1) {
+        display()
+      }
       end()
     }
-    
+
     return Promise.race([
       connectPlayer({ url, seed, index, count, color, update }),
       new Promise(s => setTimeout(s, 5000)),
-    ]).then(player => {
-      if (!player) {
+    ]).then(response => {
+      setTimeout(end)
+      console.log(response)
+      if (!response) {
         next[X] = DEAD
         next[Y] = DEAD
         deads++
-      } else {
-        current++
-        next[X] = initialState[X]
-        next[Y] = initialState[Y]
-        state[next[X] * SIZE + next[Y]] = 1
+        player.isDead = true
+        return () => {}
       }
-      setTimeout(end) // force trigger after all players are loaded
-      return player || { isDead: true }
+
+      current++
+      next[X] = initialState[X]
+      next[Y] = initialState[Y]
+      state[next[X] * SIZE + next[Y]] = 1
+      console.log(name)
+      name = response.name
+      eachMoves(next, drawMove)
+      refresh()
+      return msg => player.isDead || response.ws.send(msg)
     })
   }))
 })
 
+const proto = `ws${location.protocol === 'https:'?'s':''}://`
 // START THE GAME
 initGame([
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-  `ws://${document.location.host}/play`,
-]).then(console.log)
+  `${proto}localhost:8080`,
+  `${proto}${document.location.host}/play`,
+])
 
 </script>
 </body>
