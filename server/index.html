@@ -83,6 +83,7 @@ const getY = pos => pos % SIZE
 const PI2 = Math.PI * 2
 
 // LIB
+const inBound = n => n >= 0 && n < SIZE 
 const eachPos = fn => {
   let x = -1
   while (++x < SIZE) {
@@ -111,6 +112,8 @@ const colorize = (x, y, color) => {
   BUF[i+17] = color
 }
 
+const clear = (x, y) => colorize(x, y, 0x121212)
+
 const shuffle = arr => {
   let i = arr.length
   let j, tmp
@@ -121,11 +124,6 @@ const shuffle = arr => {
     arr[i] = tmp
   }
   return arr
-}
-
-const isEmpty = (x, y) => {
-  const color = BUF[(x*SIZE+y)*6*3+2]
-  return color === 0x121212 || color === 0x101010
 }
 
 const toInt = (r, g, b) => (r << 16) | (g << 8) | b
@@ -207,7 +205,11 @@ void main() {
 // Init webgl context
 const canvas = document.getElementById('board')
 canvas.height = canvas.width = SIZE * 2
-const gl = canvas.getContext('webgl', { antialias: false })
+const gl = canvas.getContext('webgl', {
+  alpha: false,
+  desynchronized: Boolean(params.fast),
+})
+
 gl.imageSmoothingEnabled = false
 gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
@@ -227,25 +229,19 @@ gl.linkProgram(program)
 // init blocks
 eachPos((pos, x, y) => {
   const i = pos * 3 * 6
-  const color = x % 2 && y % 2 ? 0x101010 : 0x121212
   BUF[i] = x
   BUF[i+1] = y
-  BUF[i+2] = color
   BUF[i+3] = x + 1
   BUF[i+4] = y
-  BUF[i+5] = color
   BUF[i+6] = x
   BUF[i+7] = y + 1
-  BUF[i+8] = color
   BUF[i+9] = x
   BUF[i+10] = y + 1
-  BUF[i+11] = color
   BUF[i+12] = x + 1
   BUF[i+13] = y
-  BUF[i+14] = color
   BUF[i+15] = x + 1
   BUF[i+16] = y + 1
-  BUF[i+17] = color
+  clear(x, y)
 })
 
 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
@@ -261,6 +257,8 @@ gl.enableVertexAttribArray(vCol)
 // Main render
 gl.useProgram(program)
 gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+
+// UI & CONTROLS
 
 // WEBSOCKETS
 let now = Date.now()
@@ -280,13 +278,13 @@ const connectPlayer = options => new Promise((resolve, reject) => {
   ws.addEventListener('open', () => ws.send(JSON.stringify(initParams)))
 })
 
-
 // GAME LOGIC
 const initGame = async urls => new Promise(async resolve => {
   // Generating initial state
   const seed = rand.seed(Number(params.seed))
   let count = urls.length
   let deads = 0
+  let currentIndex = 0
   const size = count * 2
   const max = (m, n) => n > m ? max(1, n - m) : n
   const angle = PI2 / count
@@ -300,24 +298,67 @@ const initGame = async urls => new Promise(async resolve => {
     Math.round(max(PI2, Math.sin(angle * i + shift)) * m + h),
   ]))
 
+  const drawMove = (x, y, i) => {
+    // more fun stuff to be done here:
+    // - Show death
+    // - fade trail comparing to index
+    colorize(x, y, players[i].color)
+  }
+
+  const display = (max = moves.length) => {
+    if (currentIndex === max) return
+    if (currentIndex < max) {
+      let i = currentIndex - 1
+      max = Math.min(max, moves.length)
+      while (++i < max) {
+        eachMoves(moves[i], drawMove)
+      }
+      currentIndex = max
+    } else {
+      let i = Math.max(max, 1) - 1
+      while (++i < currentIndex) {
+        eachMoves(moves[i], clear)
+      }
+      currentIndex = Math.max(max, 1)
+    }
+    gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
+    gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
+  }
+
+  window.display = display
   // Connecting to AI servers
   console.log('init-game', {seed, initialState, count})
   let req, prev, next = new Uint8Array(size).fill(OFF)
   let current = 0
   const moves = []
-  const loop = () => {
-    req = undefined
-    //eachPos((position, x, y) => {
-      //colorize(x, y, Math.random()*0xFFFFFF)
-    //})
-    console.log(moves.length)
-    gl.bufferData(gl.ARRAY_BUFFER, BUF, gl.STATIC_DRAW)
-    gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
-  }
+  const state = new Uint8Array(MAX)
 
+  window.addEventListener('keydown', e => {
+    switch (e.key) {
+      case "ArrowRight": display(currentIndex + 1); break
+      case "ArrowLeft": display(currentIndex - 1); break;
+    }
+  })
+
+  window.addEventListener('wheel', e => {
+    display(Math.round(currentIndex + (e.deltaY / 10)))
+  })
+
+  let timeout
+  const killPending = () => {
+    console.log('KILL!!')
+  }
   const end = () => {
-    req || (req = requestAnimationFrame(loop))
+    clearTimeout(timeout)
     if (deads === count) {
+     // const result = new Uint8Array(moves.length * size)
+     // let i = -1
+     // while (++i < moves.length) {
+     //   result.set(moves[i], i*size)
+     // }
+     // const compressed = compress(result, 9)
+     // const data = btoa(String.fromCharCode.apply(null, compressed))
+     // console.log({ compressed, result, data })
       resolve(moves)
       return
     }
@@ -328,6 +369,7 @@ const initGame = async urls => new Promise(async resolve => {
     for (const { ws, isDead } of players) {
       isDead || ws.send(prev)
     }
+    timeout = setTimeout(killPending, 1000)
   }
 
   const players = await Promise.all(shuffle(urls.map((url, index) => [
@@ -347,15 +389,17 @@ const initGame = async urls => new Promise(async resolve => {
       let y = baseY
       switch (action) {
         case SOUTH: ++x; break
-        case EAST: ++y; break
+        case EAST:  ++y; break
         case NORTH: --x; break
-        case WEST: --y; break
+        case WEST:  --y; break
       }
 
-      if (isEmpty(x, y)) {
+      const i = x * SIZE + y
+      if (!state[i] && inBound(y) && inBound(x)) {
         current++
         next[X] = x
         next[Y] = y
+        state[i] = 1
       } else {
         ws.close()
         player.isDead = true
@@ -377,6 +421,7 @@ const initGame = async urls => new Promise(async resolve => {
         current++
         next[X] = initialState[X]
         next[Y] = initialState[Y]
+        state[next[X] * SIZE + next[Y]] = 1
       }
       setTimeout(end) // force trigger after all players are loaded
       return player || { isDead: true }
@@ -393,12 +438,12 @@ initGame([
   `ws://${document.location.host}/play`,
   `ws://${document.location.host}/play`,
   `ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
-`ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
+  `ws://${document.location.host}/play`,
 ]).then(console.log)
 
 </script>
