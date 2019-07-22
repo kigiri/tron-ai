@@ -84,12 +84,15 @@ const getX = pos => Math.floor(pos / SIZE)
 const getY = pos => pos % SIZE
 const PI2 = Math.PI * 2
 const AI = params.ai ? params.ai.split(',') : ['3432']
-const SEED = params.seed || Math.floor(Math.random()*M)
-const rand = (s => () => (2**31-1 & (s = Math.imul(16807, s))) / 2**31)(SEED)
-const newUrl = `${location.origin}${location.pathname}?${
-  new URLSearchParams({ size: SIZE, seed: SEED, ai: AI })}`
+const SEED = params.seed || Math.floor(Math.random() * 2**31)
+let _seed = SEED
+const rand = () => (2**31-1 & (_seed = Math.imul(16807, _seed))) / 2**31
+const baseUrl = `${location.origin}${location.pathname}?`
 
-history.replaceState(null, document.title, newUrl)
+const setSearchParams = newParams => history
+  .replaceState(null, '', `${baseUrl}${new URLSearchParams(newParams)}`)
+
+setSearchParams({ size: SIZE, seed: SEED, ai: AI })
 params.hasOwnProperty('fast') && (localStorage.fast = params.fast == 1)
 
 // LIB
@@ -331,16 +334,31 @@ const initGame = async urls => new Promise(async resolve => {
   const moves = []
   const state = new Uint8Array(MAX)
 
-  window.addEventListener('keydown', e => {
+  const handleKey = e => {
     switch (e.key) {
       case "ArrowRight": display(currentIndex + 1); break
-      case "ArrowLeft": display(currentIndex - 1); break;
-    }
-  })
+      case "ArrowLeft": display(currentIndex - 1); break
+      case "s": {
+        // new game
+        clearTimeout(timeout)
+        setSearchParams({ size: SIZE, seed: _seed = Math.abs(_seed), ai: AI })
+        for (const sender of senders) {
+          sender.close()
+        }
+        display(0)
+        window.removeEventListener('keydown', handleKey)
+        window.removeEventListener('wheel', handleWheel)
+        setTimeout(initGame, 0, urls)
 
-  window.addEventListener('wheel', e => {
+        break
+      }
+    }
+  }
+  const handleWheel = e => {
     display(Math.max(Math.round(currentIndex + (e.deltaY / 10)), 1))
-  })
+  }
+  window.addEventListener('keydown', handleKey)
+  window.addEventListener('wheel', handleWheel)
 
   let timeout
   const killPending = () => {
@@ -417,7 +435,9 @@ const initGame = async urls => new Promise(async resolve => {
       name = response.name
       eachMoves(next, drawMove)
       refresh()
-      return msg => player.isDead || response.ws.send(msg)
+      const sender = msg => player.isDead || response.ws.send(msg)
+      sender.close = () => player.isDead || response.ws.close()
+      return sender
     })
   }))
 })
