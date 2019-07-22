@@ -9,8 +9,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var port = flag.String("port", "8751", "http service port")
 var upgrader = websocket.Upgrader{} // use default options
+var port = flag.String("port", "3432", "http service port")
 
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)

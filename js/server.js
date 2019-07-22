@@ -1,10 +1,10 @@
-const ws = require('ws')
 const fs = require('fs')
 const Module = require('module')
 const { join } = require('path')
-const rand = require('seedrandom')
 
-const wss = new ws.Server({ port: 8080 })
+const ws = require('ws')
+
+const wss = new ws.Server({ port: 3432 })
 const aiFile = join(__dirname,'ai.js')
 const evalAi = code => {
   const mod = new Module(aiFile, module.parent)
@@ -32,7 +32,8 @@ wss.on('connection', logErr(async ws => {
   ws.on('message', async buffer => {
     if (!context) {
       context = JSON.parse(buffer)
-      context.rand = rand(String(context.seed))
+      let seed = Number(context.seed)
+      context.rand = () => (2**32-1 & (seed = Math.imul(16807, seed))) / 2**32
       buildContext(context)
       ws.send(new TextEncoder().encode(context.name))
       return
