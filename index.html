@@ -84,7 +84,7 @@ const getX = pos => Math.floor(pos / SIZE)
 const getY = pos => pos % SIZE
 const PI2 = Math.PI * 2
 const AI = params.ai ? params.ai.split(',') : ['3432']
-const SEED = params.seed || Math.floor(Math.random() * 2**31)
+const SEED = Number(params.seed) || Math.floor(Math.random() * 2**31)
 let _seed = SEED
 const rand = () => (2**31-1 & (_seed = Math.imul(16807, _seed))) / 2**31
 const baseUrl = `${location.origin}${location.pathname}?`
@@ -274,7 +274,7 @@ const connectPlayer = options => new Promise((resolve, reject) => {
 })
 
 // GAME LOGIC
-const initGame = async urls => new Promise(async resolve => {
+const initGame = (urls, seed) => new Promise(async resolve => {
   // Generating initial state
   let count = urls.length
   let deads = 0
@@ -286,7 +286,6 @@ const initGame = async urls => new Promise(async resolve => {
   const shift = angle * rand()
   const h = SIZE / 2
   const m = h * 0.8
-  const seed = SEED
 
   const players = shuffle([...urls]
     .map((url, index) => ({
@@ -348,7 +347,7 @@ const initGame = async urls => new Promise(async resolve => {
         display(0)
         window.removeEventListener('keydown', handleKey)
         window.removeEventListener('wheel', handleWheel)
-        setTimeout(initGame, 0, urls)
+        setTimeout(initGame, 0, urls, _seed)
 
         break
       }
@@ -449,7 +448,7 @@ initGame(AI.map(url => {
   if (!/[.:]/.test(url)) return `${proto}${url}.serveo.net`
   if (url.startsWith('ws')) return url
   return `${proto}${url}`
-}))
+}), SEED)
 
 </script>
 </body>
