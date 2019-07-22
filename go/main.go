@@ -9,8 +9,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{} // use default options
 var port = flag.String("port", "3432", "http service port")
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		// you can limit here who can connect to your bot
+		// return true allow every one to challenge it
+		return true
+	},
+}
 
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
