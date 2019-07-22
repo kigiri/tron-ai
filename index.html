@@ -367,7 +367,6 @@ const initGame = async urls => new Promise(async resolve => {
     const Y = X + 1
     let name = url
     const update = (ws, action) => {
-      console.log('update', name, action)
       const baseX = prev[X]
       const baseY = prev[Y]
       let x = baseX
@@ -402,7 +401,6 @@ const initGame = async urls => new Promise(async resolve => {
       new Promise(s => setTimeout(s, 5000)),
     ]).then(response => {
       setTimeout(end)
-      console.log(response)
       if (!response) {
         next[X] = DEAD
         next[Y] = DEAD
@@ -415,7 +413,6 @@ const initGame = async urls => new Promise(async resolve => {
       next[X] = initialState[X]
       next[Y] = initialState[Y]
       state[next[X] * SIZE + next[Y]] = 1
-      console.log(name)
       name = response.name
       eachMoves(next, drawMove)
       refresh()
