@@ -228,7 +228,7 @@ const handleHttp = (req, res) => {
     }
     case '/start':
     case '/start/': return startGame(res, searchParams)
-    case '/ai'
+    case '/ai':
     case '/ai/': {
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       return res.end(aiList)
