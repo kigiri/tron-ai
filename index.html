@@ -70,25 +70,13 @@ canvas {
 </div>
 <canvas id="board"></canvas>
 <script type="module">
-
-// CONSTANTS
 const params = Object.fromEntries(new URL(location).searchParams)
-const DEAD = 0xFF
-const OFF = DEAD - 1
-const SIZE = Math.floor(Math.max(Math.min(params.size || 128, OFF), 8) / 2) * 2
-const MAX = SIZE*SIZE
+const SIZE = Math.floor(Math.max(Math.min(params.size || 128, 0xFF-2), 8) / 2) * 2
 const [ NORTH, EAST, SOUTH, WEST ] = Array(4).keys()
-const BUF_SIZE = SIZE*SIZE*3*6
-const BUF = new Float32Array(BUF_SIZE)
-const getX = pos => Math.floor(pos / SIZE)
-const getY = pos => pos % SIZE
-const PI2 = Math.PI * 2
-const AI = params.ai ? params.ai.split(',') : ['3432']
+const BUF = new Float32Array(SIZE*SIZE*3*6)
+const AI = params.ai ? params.ai.split(',') : []
 const SEED = Number(params.seed) || Math.floor(Math.random() * 2**31)
-let _seed = SEED
-const rand = () => (2**31-1 & (_seed = Math.imul(16807, _seed))) / 2**31
 const baseUrl = `${location.origin}${location.pathname}?`
-
 const setSearchParams = newParams => history
   .replaceState(null, '', `${baseUrl}${new URLSearchParams(newParams)}`)
 
@@ -96,7 +84,6 @@ setSearchParams({ size: SIZE, seed: SEED, ai: AI })
 params.hasOwnProperty('fast') && (localStorage.fast = params.fast == 1)
 
 // LIB
-const inBound = n => n >= 0 && n < SIZE 
 const eachPos = fn => {
   let x = -1
   while (++x < SIZE) {
@@ -126,40 +113,6 @@ const colorize = (x, y, color) => {
 }
 
 const clear = (x, y) => colorize(x, y, 0x121212)
-const shuffle = arr => {
-  let i = arr.length
-  let j, tmp
-  while (--i > 0) {
-    j = Math.floor(rand() * (i + 1))
-    tmp = arr[j]
-    arr[j] = arr[i]
-    arr[i] = tmp
-  }
-  return arr
-}
-
-const toInt = (r, g, b) => (r << 16) | (g << 8) | b
-const toRange = n => Math.round(n * 0xFF)
-const hue2rgb = (p, q, t) => {
-  if(t < 0) t += 1
-  if(t > 1) t -= 1
-  if(t < 1/6) return p + (q - p) * 6 * t
-  if(t < 1/2) return q
-  if(t < 2/3) return p + (q - p) * (2/3 - t) * 6
-  return p
-}
-
-const hslToRgb = (h, s, l) => {
-  if (!s) return toInt(toRange(l), toRange(l), toRange(l))
-
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
-  const p = 2 * l - q
-  const r = hue2rgb(p, q, h + 1/3)
-  const g = hue2rgb(p, q, h)
-  const b = hue2rgb(p, q, h - 1/3)
-
-  return toInt(toRange(r), toRange(g), toRange(b))
-}
 
 // WEBGL
 // setup shaders
@@ -252,60 +205,23 @@ const refresh = () => {
   gl.drawArrays(gl.TRIANGLES, 0, BUF.length / 3)
 }
 
-
 // UI & CONTROLS
 
-// WEBSOCKETS
-let now = Date.now()
-const connectPlayer = options => new Promise((resolve, reject) => {
-  const { url, update, ...initParams } = options
-  const ws = new WebSocket(url)
-  ws.binaryType = 'arraybuffer'
-  const init = e => {
-    const name = String.fromCharCode.apply(null, new Uint8Array(e.data))
-    ws.removeEventListener('message', init)
-    ws.addEventListener('message', ({ data }) =>
-      update(ws, new Uint8Array(data)[0]))
-    resolve({ ...initParams, url, ws, name: `${name}-${initParams.index}` })
-  }
-  ws.addEventListener('message', init)
-  ws.addEventListener('error', reject)
-  ws.addEventListener('open', () => ws.send(JSON.stringify(initParams)))
-})
+// DRAW
+let abort = () => {}
+const initGame = ({ ai, seed }) => {
+  setSearchParams({ size: SIZE, seed, ai: ai.map(p => p.name) })
 
-// GAME LOGIC
-const initGame = (urls, seed) => new Promise(async resolve => {
   // Generating initial state
-  let count = urls.length
-  let deads = 0
-  let currentIndex = 0
-  const size = count * 2
-  const max = (m, n) => n > m ? max(1, n - m) : n
-  const angle = PI2 / count
-  const rate = (SIZE / count / SIZE)
-  const shift = angle * rand()
-  const h = SIZE / 2
-  const m = h * 0.8
-
-  const players = shuffle([...urls]
-    .map((url, index) => ({
-      url,
-      index,
-      color: hslToRgb(max(1, index * rate + 0.25), 1, 0.5),
-    })))
-
-  const initialState = new Uint8Array(urls.flatMap((_, i) => [
-    Math.round(max(PI2, Math.cos(angle * i + shift)) * m + h),
-    Math.round(max(PI2, Math.sin(angle * i + shift)) * m + h),
-  ]))
-
   const drawMove = (x, y, i) => {
     // more fun stuff to be done here:
     // - Show death
     // - fade trail comparing to index
-    colorize(x, y, players[i].color)
+    colorize(x, y, ai[i].color)
   }
 
+  let currentIndex = 0
+  const moves = []
   const display = (max = moves.length) => {
     if (currentIndex === max) return
     if (currentIndex < max) {
@@ -325,130 +241,117 @@ const initGame = (urls, seed) => new Promise(async resolve => {
     refresh()
   }
 
-  window.display = display
   // Connecting to AI servers
-  console.log('init-game', {seed, initialState, count})
-  let req, prev, next = new Uint8Array(size).fill(OFF)
-  let current = 0
-  const moves = []
-  const state = new Uint8Array(MAX)
-
   const handleKey = e => {
     switch (e.key) {
-      case "ArrowRight": display(currentIndex + 1); break
-      case "ArrowLeft": display(currentIndex - 1); break
-      case "s": {
-        // new game
-        clearTimeout(timeout)
-        setSearchParams({ size: SIZE, seed: _seed = Math.abs(_seed), ai: AI })
-        for (const sender of senders) {
-          sender.close()
-        }
+      case "ArrowRight": return display(currentIndex + 1)
+      case "ArrowLeft": return display(currentIndex - 1)
+      case "s": { // new game, new seed
         display(0)
         window.removeEventListener('keydown', handleKey)
         window.removeEventListener('wheel', handleWheel)
-        setTimeout(initGame, 0, urls, _seed)
-
-        break
+        setSearchParams({ size: SIZE, ai: ai.map(p => p.name) })
+        return requestServer()
       }
     }
   }
-  const handleWheel = e => {
+
+  const handleWheel = e =>
     display(Math.max(Math.round(currentIndex + (e.deltaY / 10)), 1))
-  }
+
   window.addEventListener('keydown', handleKey)
   window.addEventListener('wheel', handleWheel)
 
-  let timeout
-  const killPending = () => {
-    console.log('KILL!!')
+  return (buff, done) => {
+    if (done) return console.log('fin')
+    moves.push(buff)
+    display()
   }
-  const end = () => {
-    clearTimeout(timeout)
-    if (deads === count) {
-      resolve(moves)
-      return
-    }
-    if ((current + deads) < count) return
-    current = 0
-    moves.push(prev = next)
-    next = new Uint8Array(size).fill(DEAD)
-    for (const send of senders) {
-      send(prev)
-    }
-    timeout = setTimeout(killPending, 1000)
+}
+
+// SERVER REQUEST
+// Fetch method, chrome and others
+const fetchStream = async partReader => {
+  abort()
+  const controller = new AbortController()
+  const response = await fetch(`${location.origin}/start/${location.search}`, controller)
+  const reader = response.body.getReader()
+  const bodyReader = ({ value, done }) => {
+    partReader(value, done)
+    return done || reader.read().then(bodyReader)
   }
+  abort = () => controller.abort()
+  return reader.read().then(bodyReader)
+}
 
-  const senders = await Promise.all(players.map(player => {
-    const { color, url, index } = player
-    const X = index * 2
-    const Y = X + 1
-    let name = url
-    const update = (ws, action) => {
-      const baseX = prev[X]
-      const baseY = prev[Y]
-      let x = baseX
-      let y = baseY
-      switch (action) {
-        case SOUTH: ++y; break
-        case EAST:  ++x; break
-        case NORTH: --y; break
-        case WEST:  --x; break
-      }
+// XHR method, firefox only
+const xhrStream = partReader => new Promise((resolve, reject) => {
+  abort()
+  const request = new XMLHttpRequest()
+  abort = () => request.abort()
+  request.responseType = 'moz-chunked-arraybuffer'
 
-      const i = x * SIZE + y
-      if (!state[i] && inBound(y) && inBound(x)) {
-        current++
-        next[X] = x
-        next[Y] = y
-        state[i] = 1
-      } else {
-        ws.close()
-        player.isDead = true
-        deads++
-      }
-      // display() sauf si explicitement pauser
-      if (currentIndex === moves.length - 1) {
-        display()
-      }
-      end()
+  request.addEventListener('progress', progress => {
+    try { partReader(request.response) }
+    catch (err) {
+      request.abort()
+      reject(err)
     }
+  })
 
-    return Promise.race([
-      connectPlayer({ url, seed, index, count, color, update }),
-      new Promise(s => setTimeout(s, 5000)),
-    ]).then(response => {
-      setTimeout(end)
-      if (!response) {
-        next[X] = DEAD
-        next[Y] = DEAD
-        deads++
-        player.isDead = true
-        return () => {}
-      }
+  request.addEventListener('load', () => {
+    try { resolve(partReader(undefined, true)) }
+    catch (err) { reject(err) }
+  })
 
-      current++
-      next[X] = initialState[X]
-      next[Y] = initialState[Y]
-      state[next[X] * SIZE + next[Y]] = 1
-      name = response.name
-      eachMoves(next, drawMove)
-      refresh()
-      const sender = msg => player.isDead || response.ws.send(msg)
-      sender.close = () => player.isDead || response.ws.close()
-      return sender
-    })
-  }))
+  request.addEventListener('error', event => {
+    const error = new Error('Failed to reach the server')
+    error.event = event
+    reject(error)
+  })
+
+  request.open('GET', `${location.origin}/start/${location.search}`)
+  request.send()
 })
 
-const proto = `ws${location.protocol === 'https:'?'s':''}://`
-// START THE GAME
-initGame(AI.map(url => {
-  if (/^[0-9]+$/.test(url)) return `ws:/localhost:${url}`
-  if (!/[.:]/.test(url)) return `${proto}${url}.serveo.net`
-  if (url.startsWith('ws')) return url
-  return `${proto}${url}`
-}), SEED)
+const decoder = new TextDecoder()
+const nextValue = () => {
+  let buff = new Uint8Array()
+  let game
+  let handler
+  let count
+  return (value, done) => {
+    if (!value) return handler(null, done)
+    const view = new Uint8Array(value)
+    const bytes = new Uint8Array(view.length + buff.length)
+    bytes.set(buff)
+    bytes.set(view, buff.length)
+    let i = 0
+
+    if (!handler) {
+      i = bytes.indexOf(0x0A) + 1
+      game = JSON.parse(decoder.decode(bytes.slice(0, i)))
+      count = game.ai.length * 2
+      handler = initGame(game)
+    }
+ 
+    while ((i+count) < bytes.length) {
+      handler(bytes.slice(i, i + count))
+      i = i + count
+    }
+    buff = bytes.slice(i)
+
+    // ? handler(value, done)
+    // : (handler = initGame(JSON.parse(decoder.decode(new Uint8Array(value)))))
+  }
+}
+
+const requestServer =
+  navigator.userAgent.search('Firefox') > -1
+    ? () => xhrStream(nextValue())
+    : () => fetchStream(nextValue())
+
+requestServer()
 
 </script>
 </body>

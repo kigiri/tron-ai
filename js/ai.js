@@ -1,26 +1,28 @@
 const [ NORTH, EAST, SOUTH, WEST ] = Array(4).keys()
 
-// context.size: the size of the map (max 254)
+// context.size: the size of the map (max 250)
 // context.count: the amount of players in the game
 // context.index: your personal index
-// context.seed: the seed used for this game
-// context.rand: a random object allowing you to get random numbers form the seed
-// context.color: your color, not very important
+// context.rand: a seeded random function
 exports.buildContext = context => {
 
   // prepare you context here
 
   return {
     // we return a name, but you can add anything
-    name: 'jean-js',
   }
 }
 
+
+const wait = t => new Promise(s => setTimeout(s, t))
 // context: contain everything you returned in buildContext
 // players: the list of the players coordinate, you are the first in the list
-exports.ai = (context, players) => {
+exports.ai = async (context, players) => {
   // Return a direction here, choose wisely
 
   // always EAST, always right
+  //await wait(Math.random()*1000)
   return EAST
 }
+
+exports.name = 'wesh'
