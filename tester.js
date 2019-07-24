@@ -7,8 +7,15 @@ const [ START, MOVES ] = Array(0xFF).keys()
 const [ NORTH, EAST, SOUTH, WEST ] = Array(0xFF).keys()
 const PI2 = Math.PI * 2
 
+let aiList = '[]'
+const updateAiList = () =>
+  aiList = Buffer.from(JSON.stringify([...SOCKETS.keys()]))
+
 const getSocket = name => SOCKETS.get(name)
-function remove() { SOCKETS.delete(this.name) }
+function remove() {
+  SOCKETS.delete(this.name)
+  updateAiList()
+}
 
 const toInt = (r, g, b) => (r << 16) | (g << 8) | b
 const toRange = n => Math.round(n * 0xFF)
@@ -45,13 +52,9 @@ const free = ({ games, queue }, id) => {
   const register = queue.pop()
   if (register) return games.set(id, register(id))
   games.delete(id)
-  // console.log('removed id', id, games)
 }
 
-let out = 0
-let inn = 0
 function handleData(buff) {
-  console.log('s << c', out += buff.length, buff)
   const { games } = this
   let i = -1
   while (++i < buff.length) {
@@ -62,22 +65,19 @@ function handleData(buff) {
   }
 }
 
+const logErrOrMessage = m => err => err ? console.log(err) : console.log(m)
 net.createServer(socket => socket.once('data', buff => {
   socket.name = buff.toString('utf8').replace(/,/g, '-')
   socket.games = new Map()
   socket.queue = []
   SOCKETS.set(socket.name, socket)
+  updateAiList()
   socket.on('error', console.log)
   socket.on('close', remove)
   socket.on('data', handleData)
-  socket.___write = socket.write
-  socket.write = buff => {
-    console.log('s >> c', inn += buff.length, buff)
-    return socket.___write(buff)
-  }
 }))
   .on('error', console.log)
-  .listen(3234, err => err ? console.log(err) : console.log('net open'))
+  .listen(3234, logErrOrMessage('net open'))
 
 const fail = (code, res, message) => {
   res.status = code
@@ -97,13 +97,6 @@ const shuffle = (arr, rand) => {
     arr[i] = tmp
   }
   return arr
-}
-
-const logState = (state, size) => {
-  let x = -1
-  while (++x < size) {
-    console.log(...state.slice(x*size, x*size + size))
-  }
 }
 
 const movesLeft = (state, size, i) => {
@@ -224,31 +217,35 @@ const startGame = async (res, params) => {
   })
 }
 
+const indexFile = fs.readFileSync('./index.html')
 const handleHttp = (req, res) => {
   const { searchParams, pathname } = new URL(`http://n${req.url}`)
   switch (pathname) {
     case '/': {
+      // we should add brotli / gzip
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
-      return res.end(fs.readFileSync('./index.html'))
+      return res.end(indexFile)
     }
     case '/start':
     case '/start/': return startGame(res, searchParams)
+    case '/ai'
+    case '/ai/': {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      return res.end(aiList)
+    }
+    // case '/history': // should send a list of latest games ?
   }
   fail(404, res, pathname)
 }
 
-const indexFile = fs.readFileSync('./index.html')
-// const indexFileBr = compress
 const port = Number(process.env.PORT) || 3432
 if (port === 443) {
   require('https').createServer({
     cert: fs.readFileSync('./oct.ovh.cert'),
     key: fs.readFileSync('./oct.ovh.key'),
-  }, handleHttp)
-    .listen(port, err => err ? console.log(err) : console.log('https open'))
+  }, handleHttp).listen(port, logErrOrMessage('https open'))
 } else {
-  http.createServer(handleHttp)
-    .listen(port, err => err ? console.log(err) : console.log('http open'))
+  http.createServer(handleHttp).listen(port, logErrOrMessage('http open'))
 }
 
 
