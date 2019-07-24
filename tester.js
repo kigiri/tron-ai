@@ -238,7 +238,7 @@ const handleHttp = (req, res) => {
 
 const indexFile = fs.readFileSync('./index.html')
 // const indexFileBr = compress
-const port = process.env.PORT || 3432
+const port = Number(process.env.PORT) || 3432
 if (port === 443) {
   require('https').createServer({
     cert: fs.readFileSync('./oct.ovh.cert'),
