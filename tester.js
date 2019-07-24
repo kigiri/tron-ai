@@ -1,6 +1,5 @@
 const fs = require('fs')
 const net = require('net')
-const http = require('http')
 
 const SOCKETS = new Map()
 const [ START, MOVES ] = Array(0xFF).keys()
@@ -224,10 +223,7 @@ const startGame = async (res, params) => {
   })
 }
 
-const indexFile = fs.readFileSync('./index.html')
-
-const port = process.env.PORT || 3432
-http.createServer((req, res) => {
+const handleHttp = (req, res) => {
   const { searchParams, pathname } = new URL(`http://n${req.url}`)
   switch (pathname) {
     case '/': {
@@ -238,7 +234,21 @@ http.createServer((req, res) => {
     case '/start/': return startGame(res, searchParams)
   }
   fail(404, res, pathname)
-}).listen(port, err => err ? console.log(err) : console.log('http open'))
+}
+
+const indexFile = fs.readFileSync('./index.html')
+// const indexFileBr = compress
+const port = process.env.PORT || 3432
+if (port === 443) {
+  require('https').createServer({
+    cert: fs.readFileSync('./oct.ovh.cert'),
+    key: fs.readFileSync('./oct.ovh.key'),
+  }, handleHttp)
+    .listen(port, err => err ? console.log(err) : console.log('https open'))
+} else {
+  require('http').createServer(handleHttp)
+    .listen(port, err => err ? console.log(err) : console.log('http open'))
+}
 
 
 require('./js/main.js')
