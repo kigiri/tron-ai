@@ -226,6 +226,7 @@ const startGame = async (res, params) => {
 
 const indexFile = fs.readFileSync('./index.html')
 
+const port = process.env.PORT || 3432
 http.createServer((req, res) => {
   const { searchParams, pathname } = new URL(`http://n${req.url}`)
   switch (pathname) {
@@ -237,7 +238,7 @@ http.createServer((req, res) => {
     case '/start/': return startGame(res, searchParams)
   }
   fail(404, res, pathname)
-}).listen(3432, err => err ? console.log(err) : console.log('http open'))
+}).listen(port, err => err ? console.log(err) : console.log('http open'))
 
 
 require('./js/main.js')
