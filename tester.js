@@ -1,5 +1,6 @@
 const fs = require('fs')
 const net = require('net')
+const http = require('http')
 
 const SOCKETS = new Map()
 const [ START, MOVES ] = Array(0xFF).keys()
@@ -246,7 +247,7 @@ if (port === 443) {
   }, handleHttp)
     .listen(port, err => err ? console.log(err) : console.log('https open'))
 } else {
-  require('http').createServer(handleHttp)
+  http.createServer(handleHttp)
     .listen(port, err => err ? console.log(err) : console.log('http open'))
 }
 
