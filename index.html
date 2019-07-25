@@ -222,7 +222,11 @@ const initGame = ({ ai, seed }) => {
 
   let currentIndex = 0
   const moves = []
-  const display = (max = moves.length) => {
+  const display = max => {
+    if (max === undefined) {
+      if ((currentIndex + 1) !== moves.length) return
+      max = moves.length
+    }
     if (currentIndex === max) return
     if (currentIndex < max) {
       let i = currentIndex - 1
@@ -336,7 +340,7 @@ const nextValue = () => {
     }
  
     while ((i+count) < bytes.length) {
-      handler(bytes.slice(i, i + count))
+      setTimeout(handler, 0, bytes.slice(i, i + count))
       i = i + count
     }
     buff = bytes.slice(i)

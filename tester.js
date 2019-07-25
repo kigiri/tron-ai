@@ -249,5 +249,7 @@ if (port === 443) {
   }, handleHttp).listen(port, logErrOrMessage('https open'))
 } else {
   http.createServer(handleHttp).listen(port, logErrOrMessage('http open'))
+  process.env.HOST = 'localhost'
+  require('./js/main.js')
 }
 
