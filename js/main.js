@@ -49,7 +49,9 @@ const handleInit = async (game, buff) => {
   return game.run(buff.slice(6))
 }
 
-const connect = () => createConnection(3234, 'localhost', async function() {
+const host = process.env.HOST || '51.158.101.238'
+const port = Number(process.env.PORT) || 3234
+const connect = () => createConnection(port, host, async function() {
   const socket = this
   console.log('connected to remote server')
   const write = data => socket.write(data)
