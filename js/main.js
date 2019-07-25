@@ -44,7 +44,7 @@ const handleInit = async (game, buff) => {
         players[i+1] = player
       }
     }
-    return Buffer.from([id, await ai(context)])
+    return Buffer.from([id, await ai(context, players)])
   }
   return game.run(buff.slice(6))
 }
@@ -62,7 +62,7 @@ const connect = () => createConnection(3234, 'localhost', async function() {
       try {
         switch (action) {
           case 0x00: {
-            const end = buff[i] + 9 + i
+            const end = buff[i]*2 + 6 + i
             handleInit(game, buff.slice(i, end)).then(write)
             i = end
             break

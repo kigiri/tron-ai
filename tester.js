@@ -67,7 +67,7 @@ function handleData(buff) {
 
 const logErrOrMessage = m => err => err ? console.log(err) : console.log(m)
 net.createServer(socket => socket.once('data', buff => {
-  socket.name = buff.toString('utf8').replace(/,/g, '-')
+  socket.name = buff.toString('utf8').replace(/[^-_.a-z0-9]/ig, '-')
   socket.games = new Map()
   socket.queue = []
   SOCKETS.set(socket.name, socket)
@@ -125,8 +125,9 @@ const startGame = async (res, params) => {
   const seed = Math.abs(Number(params.get('seed'))
     || Math.floor(Math.random()*0XFFFFFF))
 
+
   const sockets = (params.get('ai')||'')
-    .split(',')
+    .split(' ')
     .sort()
     .map(getSocket)
     .filter(Boolean)

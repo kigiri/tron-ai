@@ -74,7 +74,7 @@ const params = Object.fromEntries(new URL(location).searchParams)
 const SIZE = Math.floor(Math.max(Math.min(params.size || 128, 0xFF-2), 8) / 2) * 2
 const [ NORTH, EAST, SOUTH, WEST ] = Array(4).keys()
 const BUF = new Float32Array(SIZE*SIZE*3*6)
-const AI = params.ai ? params.ai.split(',') : []
+const AI = params.ai ? params.ai.split('+') : []
 const SEED = Number(params.seed) || Math.floor(Math.random() * 2**31)
 const baseUrl = `${location.origin}${location.pathname}?`
 const setSearchParams = newParams => history
@@ -210,7 +210,7 @@ const refresh = () => {
 // DRAW
 let abort = () => {}
 const initGame = ({ ai, seed }) => {
-  setSearchParams({ size: SIZE, seed, ai: ai.map(p => p.name) })
+  setSearchParams({ size: SIZE, seed, ai: ai.map(p => p.name).join(' ') })
 
   // Generating initial state
   const drawMove = (x, y, i) => {
@@ -250,14 +250,14 @@ const initGame = ({ ai, seed }) => {
         display(0)
         window.removeEventListener('keydown', handleKey)
         window.removeEventListener('wheel', handleWheel)
-        setSearchParams({ size: SIZE, ai: ai.map(p => p.name) })
+        setSearchParams({ size: SIZE, ai: ai.map(p => p.name).join(' ') })
         return requestServer()
       }
     }
   }
 
   const handleWheel = e =>
-    display(Math.max(Math.round(currentIndex + (e.deltaY / 10)), 1))
+    display(Math.max(Math.round(currentIndex + e.deltaY), 1))
 
   window.addEventListener('keydown', handleKey)
   window.addEventListener('wheel', handleWheel)
