@@ -7,7 +7,7 @@ A small ai project to learn to code in any language
 ```shell
 # install git
 git clone https://github.com/kigiri/tron-ai.git
-cd tron-ai/go
+cd tron-ai/
 ```
 > I recommand to use your own fork and clone it with `ssh`
 
@@ -17,7 +17,7 @@ cd tron-ai/go
 ```shell
 # install nodejs
 cd js
-node server.js
+node main.js
 ```
 
 > Open the file `ai.js`
@@ -35,15 +35,13 @@ go run ai.go main.go
 
 ## Test your code
 
-Open https://kigiri.github.io/tron-ai/?size=128&ai=3432,3432,3432 (I started 3 times against the same AI here, looking on port `3432`)
+Open https://tron.oct.ovh/?size=128&ai=noname+noname+noname (I started 3 times against the same AI here)
 
 You can edit the url parameters as you want.
 
 ### Edit the url parameters
-#### `ai=3432`
-- Numbers are used as ports in `localhost`
-- Simple words are resolved throught serveo *(ex: `barba` -> `wss://barba.serveo.net`)*
-- Missing protocol is added to urls (ex: `vieux.pro/ai-tron` -> `wss://vieux.pro/ai-tron`)
+#### `ai=noname+noname`
+Name of the AIs you want to start the game with, separated by `+`
 
 #### `size=254`
 control the size of the map, minmum 8, maximum 254
@@ -63,15 +61,3 @@ Enable async rendering, might fuck up the quality, use if it's laggy
 - `Scroll` (move in the timeline)
 - `Left / Right` (move in the timeline step by step)
 - `s` (reload game with a new seed)
-
-## Expose your AI
-In another shell
-```shell
-ssh -R 80:localhost:8751 serveo.net
-```
-You can now share your AI using the serveo generated link
-
-Other ways:
-- Configure your box to expose a port online (your computer must be online too)
-- Pay a server (scaleway make cheap 2e/month servers, but performances are bad)
-- Share your AI code directly

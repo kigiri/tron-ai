@@ -75,6 +75,8 @@ net.createServer(socket => socket.once('data', buff => {
   socket.on('error', console.log)
   socket.on('close', remove)
   socket.on('data', handleData)
+  socket.setTimeout(0)
+  socket.setKeepAlive(false)
 }))
   .on('error', console.log)
   .listen(3234, logErrOrMessage('net open'))
@@ -249,5 +251,3 @@ if (port === 443) {
   http.createServer(handleHttp).listen(port, logErrOrMessage('http open'))
 }
 
-
-require('./js/main.js')
