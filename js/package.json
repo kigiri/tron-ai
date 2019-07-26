@@ -1,0 +1,17 @@
+{
+  "name": "tron-ai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "dependencies": {
+    "assert": "^2.0.0",
+    "mocha": "^6.2.0",
+    "sinon": "^7.3.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "GodOfMacro",
+  "license": "ISC"
+}
